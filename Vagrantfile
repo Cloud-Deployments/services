@@ -8,17 +8,14 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |v|
     v.memory = 4096
     v.cpus = 2
-    v.name = "runner-dev"
+    v.name = "dev-server"
   end
 
   # Network configuration
   config.vm.network "private_network", ip: "192.168.56.10"
 
   # Port forwarding
-  config.vm.network "forwarded_port", guest: 8080, host: 8080  # Coordinator
-
-  # Shared folder for development
-  config.vm.synced_folder ".", "/home/vagrant/dev"
+  config.vm.network "forwarded_port", guest: 22, host: 2222
 
   # Provisioning script
   config.vm.provision "shell", inline: <<-SHELL
@@ -39,12 +36,14 @@ Vagrant.configure("2") do |config|
         tmux \
         build-essential
 
-    # Create test SSH keys
-    mkdir -p /home/vagrant/.ssh/test-keys
-    ssh-keygen -t rsa -b 4096 -f /home/vagrant/.ssh/test-keys/test_key -N ""
-    chown -R vagrant:vagrant /home/vagrant/.ssh
+    timedatectl set-timezone Europe/Amsterdam
 
-    echo "Local VPS is complete!"
+    # Create deployment user (similar to cloud setup)
+    useradd -m -s /bin/bash deploy
+    mkdir -p /home/deploy/.ssh
+    chown -R deploy:deploy /home/deploy/.ssh
+
+    echo "Development environment ready!"
     echo "Access the VM using: vagrant ssh"
   SHELL
 end
