@@ -1,11 +1,15 @@
 package connection
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/Cloud-Deployments/services/runner/executor"
+	"github.com/Cloud-Deployments/services/runner/job"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -22,6 +26,8 @@ type AuthCredentials struct {
 }
 
 type CoordinatorConnectionOpts struct {
+	Executor *executor.Executor
+
 	Host string
 	Port int
 	Path string
@@ -43,6 +49,11 @@ func NewCoordinatorConnection(opts CoordinatorConnectionOpts) *CoordinatorConnec
 
 func (c *CoordinatorConnection) Close() {
 	close(c.quitch)
+}
+
+func isBase64Encoded(s string) bool {
+	_, err := base64.StdEncoding.DecodeString(s)
+	return err == nil
 }
 
 func (c *CoordinatorConnection) Connect() error {
@@ -75,8 +86,72 @@ func (c *CoordinatorConnection) Connect() error {
 			_, message, err := client.ReadMessage()
 			if err != nil {
 				log.Println("read", err)
-				return
+				continue
 			}
+
+			var msg Message
+			err = json.Unmarshal(message, &msg)
+			if err != nil {
+				log.Println("unmarshal", err)
+				continue
+			}
+
+			switch msg.Type {
+			case "new-job":
+				log.Println("Received new job message")
+
+				//if isBase64Encoded(string(msg.Data)) {
+				//	msg.Data, err = base64.StdEncoding.DecodeString(string(msg.Data))
+				//	if err != nil {
+				//		log.Println("Error decoding base64 data:", err)
+				//		continue
+				//	}
+				//}
+
+				var j job.Job
+				err := json.Unmarshal(msg.Data, &j)
+				if err != nil {
+					log.Println("Error unmarshalling job:", err)
+					continue
+				}
+
+				fmt.Printf("job data recv: %+v\n", j)
+
+				go func() {
+					type jobResponse struct {
+						RunnerId  string `json:"runner_id"`
+						JobId     string `json:"job_id"`
+						Completed bool   `json:"completed"`
+						Output    []byte `json:"output"`
+					}
+
+					output, err := c.Executor.Run(&j)
+					if err != nil {
+						log.Println("Error running job:", err)
+					}
+
+					response := jobResponse{
+						RunnerId:  os.Getenv("RUNNER_ID"),
+						JobId:     j.Id,
+						Completed: err == nil,
+						Output:    output,
+					}
+
+					responseData, err := json.Marshal(response)
+					if err != nil {
+						log.Println("Error marshalling job response:", err)
+						return
+					}
+
+					data, err := json.Marshal(Message{
+						Type: "job-response",
+						Data: responseData,
+					})
+
+					client.WriteMessage(websocket.TextMessage, data)
+				}()
+			}
+
 			log.Printf("recv: %s", message)
 		}
 	}()
