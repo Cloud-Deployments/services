@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+        - "5432:5432"
+    volumes:
+        - postgres_data:/var/lib/postgresql/data
+
+  cache:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+
+  coordinator-service:
+    build:
+      context: ./coordinator-service
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+      - "4001:4001"
+    depends_on:
+      - db
+      - cache
+    networks:
+      - shared
+    develop:
+      watch:
+        - action: rebuild
+          path: ./coordinator-service/
+
+  runner-service:
+    build:
+      context: ./runner-service
+      dockerfile: Dockerfile
+    ports:
+      - "5002:5002"
+    depends_on:
+      - db
+      - cache
+      - coordinator-service
+    networks:
+      - shared
+    develop:
+      watch:
+        - action: rebuild
+          path: ./runner-service/
+
+volumes:
+    postgres_data:
+      driver: local
+    redis_data:
+        driver: local
+
+networks:
+  shared:
+    driver: bridge
