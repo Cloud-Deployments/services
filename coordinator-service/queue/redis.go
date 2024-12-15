@@ -25,8 +25,10 @@ type RedisDriver struct {
 }
 
 func NewRedisDriver(opts RedisDriverOpts) *RedisDriver {
+	host := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+	fmt.Println("Redis host:", host)
 	client := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", opts.Host, opts.Port),
+		Addr:     host,
 		Password: opts.Password,
 		DB:       opts.DB,
 	})

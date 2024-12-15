@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/Cloud-Deployments/services/coordinator/job"
 	"github.com/gorilla/websocket"
 	"log"
 	"net"
@@ -41,6 +41,7 @@ type Runner struct {
 	JoinedAt       time.Time
 
 	Authenticated bool
+	Available     bool
 }
 
 func (r *Runner) authLoop() {
@@ -111,6 +112,8 @@ func (r *Runner) writePump() {
 		ticker.Stop()
 		r.Conn.Close()
 	}()
+
+	r.Available = true
 	for {
 		select {
 		case message, ok := <-r.Send:
@@ -146,6 +149,35 @@ func (r *Runner) writePump() {
 	}
 }
 
+type NewJobMessage struct {
+	Type string `json:"type"`
+	Data []byte `json:"data"`
+}
+
+func (r *Runner) SendJob(j *job.Job) error {
+	jobData, err := json.Marshal(&j)
+	if err != nil {
+		log.Println("Error marshalling job data:", err)
+		return err
+	}
+
+	newJobMsg := NewJobMessage{
+		Type: "new-job",
+		Data: jobData,
+	}
+
+	jsonData, err := json.Marshal(newJobMsg)
+	if err != nil {
+		log.Println("Error marshalling new job message:", err)
+		return err
+	}
+
+	r.Available = false
+	r.Send <- jsonData
+
+	return nil
+}
+
 type AuthCredentialsRequest struct {
 	RunnerId    string `json:"runner_id"`
 	RunnerToken string `json:"runner_token"`
@@ -163,9 +195,6 @@ func (r *Runner) Authenticate(data []byte) error {
 	}
 
 	// check creds with api and check if has access to organization
-	fmt.Println("runner id", authReq.RunnerId)
-	fmt.Println("runner token", authReq.RunnerToken)
-
 	r.Id = authReq.RunnerId
 	r.Token = authReq.RunnerToken
 	r.Authenticated = true

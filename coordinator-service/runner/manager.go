@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/Cloud-Deployments/services/coordinator/job"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -57,12 +59,20 @@ func (m *Manager) ListenForRunners(w http.ResponseWriter, r *http.Request) {
 		Send:           make(chan []byte, 256),
 		JoinedAt:       time.Now(),
 		Authenticated:  false,
+		Available:      false,
 	}
 	pool.register <- runner
 
 	go runner.authLoop()
 	go runner.readPump()
 	go runner.writePump()
+}
+
+type JobResponse struct {
+	RunnerId  string `json:"runner_id"`
+	JobId     string `json:"job_id"`
+	Completed bool   `json:"completed"`
+	Output    []byte `json:"output"`
 }
 
 func (m *Manager) Run() {
@@ -73,7 +83,41 @@ func (m *Manager) Run() {
 			case "ping":
 				fmt.Println("Received ping message")
 				continue
+			case "job-response":
+				fmt.Println("Received job response message")
+				var jobResponse *JobResponse
+				err := json.Unmarshal(message.Data, &jobResponse)
+				if err != nil {
+					log.Println("Error unmarshalling job response:", err)
+					continue
+				}
+
+				for _, pool := range m.pools {
+					for runner := range pool.runners {
+						if runner.Id == jobResponse.RunnerId {
+							runner.Available = true
+							break
+						}
+					}
+				}
 			}
 		}
 	}
+}
+
+func (m *Manager) NewJob(j *job.Job) (bool, error) {
+	for _, pool := range m.pools {
+		for runner := range pool.runners {
+			if runner.Available {
+				err := runner.SendJob(j)
+				if err != nil {
+					continue
+				}
+
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }

@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
+    networks:
+        - shared
     ports:
         - "5432:5432"
     volumes:
@@ -16,6 +18,8 @@ services:
     ports:
       - '6379:6379'
     command: redis-server --save 20 1 --loglevel warning
+    networks:
+        - shared
     volumes:
       - redis_data:/data
 
@@ -26,6 +30,7 @@ services:
     ports:
       - "5001:5001"
       - "4001:4001"
+      - "8081:80"
     depends_on:
       - db
       - cache
@@ -53,10 +58,28 @@ services:
         - action: rebuild
           path: ./runner-service/
 
+  ubuntu-vm:
+    image: ubuntu:24.04
+    networks:
+      - shared
+    ports:
+      - "2222:22"
+    volumes:
+      - ubuntu_vm:/data
+    command: bash -c "
+      apt-get update &&
+      apt-get install -y openssh-server &&
+      echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config &&
+      echo 'root:root' | chpasswd &&
+      mkdir -p /run/sshd &&
+      /usr/sbin/sshd -D"
+
 volumes:
     postgres_data:
       driver: local
     redis_data:
+        driver: local
+    ubuntu_vm:
         driver: local
 
 networks:

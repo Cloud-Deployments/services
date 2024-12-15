@@ -48,7 +48,25 @@ func (h *Handler) Run() {
 				continue
 			}
 
+			isQueued, err := h.manager.NewJob(j)
+			if err != nil {
+				log.Printf("failed to process job: %s", j.Id)
+				continue
+			}
+
+			if !isQueued {
+				err = h.Driver.Enqueue(j)
+				if err != nil {
+					log.Printf("failed to re-enqueue job: %s", j.Id)
+					continue
+				}
+			}
+
 			log.Printf("processing job: %s", j.Id)
 		}
 	}
+}
+
+func (h *Handler) Dispatch(j *job.Job) error {
+	return h.Driver.Enqueue(j)
 }
