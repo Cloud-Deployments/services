@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/url"
-	"os"
 	"time"
 )
 
@@ -118,37 +117,10 @@ func (c *CoordinatorConnection) Connect() error {
 				fmt.Printf("job data recv: %+v\n", j)
 
 				go func() {
-					type jobResponse struct {
-						RunnerId  string `json:"runner_id"`
-						JobId     string `json:"job_id"`
-						Completed bool   `json:"completed"`
-						Output    []byte `json:"output"`
-					}
-
-					output, err := c.Executor.Run(&j)
+					err := c.Executor.Run(&j, client)
 					if err != nil {
 						log.Println("Error running job:", err)
 					}
-
-					response := jobResponse{
-						RunnerId:  os.Getenv("RUNNER_ID"),
-						JobId:     j.Id,
-						Completed: err == nil,
-						Output:    output,
-					}
-
-					responseData, err := json.Marshal(response)
-					if err != nil {
-						log.Println("Error marshalling job response:", err)
-						return
-					}
-
-					data, err := json.Marshal(Message{
-						Type: "job-response",
-						Data: responseData,
-					})
-
-					client.WriteMessage(websocket.TextMessage, data)
 				}()
 			}
 

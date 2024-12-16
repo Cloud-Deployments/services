@@ -1,18 +1,20 @@
 package runner
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/Cloud-Deployments/services/coordinator/job"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 4,
-	WriteBufferSize: 1024 * 4,
+	ReadBufferSize:  1024 * 8,
+	WriteBufferSize: 1024 * 8,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -68,11 +70,12 @@ func (m *Manager) ListenForRunners(w http.ResponseWriter, r *http.Request) {
 	go runner.writePump()
 }
 
-type JobResponse struct {
-	RunnerId  string `json:"runner_id"`
-	JobId     string `json:"job_id"`
-	Completed bool   `json:"completed"`
-	Output    []byte `json:"output"`
+type JobLog struct {
+	RunnerId string `json:"runner_id"`
+	JobId    string `json:"job_id"`
+	Finished bool   `json:"finished"`
+	Type     string `json:"type"`
+	Log      string `json:"log"`
 }
 
 func (m *Manager) Run() {
@@ -83,20 +86,24 @@ func (m *Manager) Run() {
 			case "ping":
 				fmt.Println("Received ping message")
 				continue
-			case "job-response":
-				fmt.Println("Received job response message")
-				var jobResponse *JobResponse
-				err := json.Unmarshal(message.Data, &jobResponse)
+			case "job-log":
+				fmt.Println("Received job log message")
+				var jobLog *JobLog
+				err := json.Unmarshal(message.Data, &jobLog)
 				if err != nil {
 					log.Println("Error unmarshalling job response:", err)
 					continue
 				}
 
-				for _, pool := range m.pools {
-					for runner := range pool.runners {
-						if runner.Id == jobResponse.RunnerId {
-							runner.Available = true
-							break
+				go sendLogToWebhook(jobLog)
+
+				if jobLog.Finished {
+					for _, pool := range m.pools {
+						for runner := range pool.runners {
+							if runner.Id == jobLog.RunnerId {
+								runner.Available = true
+								break
+							}
 						}
 					}
 				}
@@ -120,4 +127,44 @@ func (m *Manager) NewJob(j *job.Job) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func sendLogToWebhook(jobLog *JobLog) {
+	secret := os.Getenv("WEBHOOK_SECRET")
+	url := os.Getenv("WEBHOOK_URL")
+
+	jsonData, err := json.Marshal(jobLog)
+	if err != nil {
+		log.Println("Error marshalling job log data:", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Println("Error creating webhook request:", err)
+		return
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Webhook-Secret", secret)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("Error sending webhook request:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		jsonBody, err := json.Marshal(resp.Body)
+		if err != nil {
+			log.Println("Error reading webhook response body:", err)
+			return
+		}
+
+		log.Println("Webhook request failed:", resp.Status, string(jsonBody))
+		return
+	}
 }
