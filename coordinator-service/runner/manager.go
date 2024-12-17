@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/Cloud-Deployments/services/coordinator/client"
 	"github.com/Cloud-Deployments/services/coordinator/job"
 	"github.com/gorilla/websocket"
 	"log"
@@ -21,6 +22,7 @@ var upgrader = websocket.Upgrader{
 }
 
 type Manager struct {
+	ApiClient *client.Client
 	pools     map[string]*Pool
 	broadcast chan *Message
 }
@@ -30,8 +32,9 @@ type Message struct {
 	Data []byte `json:"data"`
 }
 
-func NewManager() *Manager {
+func NewManager(apiClient *client.Client) *Manager {
 	return &Manager{
+		ApiClient: apiClient,
 		pools:     map[string]*Pool{},
 		broadcast: make(chan *Message),
 	}

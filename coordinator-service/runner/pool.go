@@ -40,6 +40,17 @@ func (p *Pool) Run() {
 			p.AddRunner(client)
 			log.Println("Runner connected:", client.Addr.String())
 		case client := <-p.unregister:
+			runnerId := client.Id
+			clientSecret := client.Token
+			organizationId := p.OrganizationId
+
+			go func(runnerId, runnerSecret, organizationId string) {
+				err := p.Manager.ApiClient.Logout(runnerId, runnerSecret, organizationId)
+				if err != nil {
+					log.Println("Error logging out runner:", err)
+				}
+			}(runnerId, clientSecret, organizationId)
+
 			log.Println("Runner disconnected")
 			p.RemoveRunner(client)
 		}

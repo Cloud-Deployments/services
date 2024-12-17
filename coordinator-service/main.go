@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Cloud-Deployments/services/coordinator/api"
+	"github.com/Cloud-Deployments/services/coordinator/client"
 	"github.com/Cloud-Deployments/services/coordinator/queue"
 	"github.com/Cloud-Deployments/services/coordinator/runner"
 	"github.com/joho/godotenv"
@@ -14,8 +15,10 @@ import (
 
 func main() {
 
+	apiClient := client.NewClient(os.Getenv("API_URL"))
+
 	// create a new manager for every organization
-	manager := runner.NewManager()
+	manager := runner.NewManager(apiClient)
 
 	go func() {
 		manager.Run()

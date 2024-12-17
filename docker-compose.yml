@@ -44,22 +44,26 @@ services:
         - action: rebuild
           path: ./coordinator-service/
 
-  runner-service:
-    build:
-      context: ./runner-service
-      dockerfile: Dockerfile
-    ports:
-      - "5002:5002"
-    depends_on:
-      - db
-      - cache
-      - coordinator-service
-    networks:
-      - shared
-    develop:
-      watch:
-        - action: rebuild
-          path: ./runner-service/
+#  runner-service:
+#    build:
+#      context: ./runner-service
+#      dockerfile: Dockerfile
+#    ports:
+#      - "5002:5002"
+#    depends_on:
+#      - db
+#      - cache
+#      - coordinator-service
+#    networks:
+#      - shared
+#    environment:
+#      RUNNER_ID: runner-1
+#      RUNNER_TOKEN: runner-1-secret
+#      ORGANIZATION_ID: 123
+#    develop:
+#      watch:
+#        - action: rebuild
+#          path: ./runner-service/
 
   ubuntu-vm:
     image: ubuntu:24.04

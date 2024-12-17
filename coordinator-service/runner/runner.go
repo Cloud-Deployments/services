@@ -70,7 +70,7 @@ func (r *Runner) authLoop() {
 
 func (r *Runner) readPump() {
 	defer func() {
-		r.Pool.unregister <- nil
+		r.Pool.unregister <- r
 		r.Conn.Close()
 	}()
 	r.Conn.SetReadLimit(maxMessageSize)
@@ -195,6 +195,11 @@ func (r *Runner) Authenticate(data []byte) error {
 	}
 
 	// check creds with api and check if has access to organization
+	err = r.Pool.Manager.ApiClient.Login(authReq.RunnerId, authReq.RunnerToken, r.OrganizationId)
+	if err != nil {
+		return err
+	}
+
 	r.Id = authReq.RunnerId
 	r.Token = authReq.RunnerToken
 	r.Authenticated = true
