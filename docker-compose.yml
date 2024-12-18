@@ -6,20 +6,20 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     networks:
-        - shared
+      - shared
     ports:
-        - "5432:5432"
+      - "5432:5432"
     volumes:
-        - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
   cache:
     image: redis:7.4-alpine
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - "6380:6379"
     command: redis-server --save 20 1 --loglevel warning
     networks:
-        - shared
+      - shared
     volumes:
       - redis_data:/data
 
@@ -44,26 +44,26 @@ services:
         - action: rebuild
           path: ./coordinator-service/
 
-#  runner-service:
-#    build:
-#      context: ./runner-service
-#      dockerfile: Dockerfile
-#    ports:
-#      - "5002:5002"
-#    depends_on:
-#      - db
-#      - cache
-#      - coordinator-service
-#    networks:
-#      - shared
-#    environment:
-#      RUNNER_ID: runner-1
-#      RUNNER_TOKEN: runner-1-secret
-#      ORGANIZATION_ID: 123
-#    develop:
-#      watch:
-#        - action: rebuild
-#          path: ./runner-service/
+  #  runner-service:
+  #    build:
+  #      context: ./runner-service
+  #      dockerfile: Dockerfile
+  #    ports:
+  #      - "5002:5002"
+  #    depends_on:
+  #      - db
+  #      - cache
+  #      - coordinator-service
+  #    networks:
+  #      - shared
+  #    environment:
+  #      RUNNER_ID: runner-1
+  #      RUNNER_TOKEN: runner-1-secret
+  #      ORGANIZATION_ID: 123
+  #    develop:
+  #      watch:
+  #        - action: rebuild
+  #          path: ./runner-service/
 
   ubuntu-vm:
     image: ubuntu:24.04
@@ -82,12 +82,12 @@ services:
       /usr/sbin/sshd -D"
 
 volumes:
-    postgres_data:
-      driver: local
-    redis_data:
-        driver: local
-    ubuntu_vm:
-        driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ubuntu_vm:
+    driver: local
 
 networks:
   shared:
